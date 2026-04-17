@@ -1,0 +1,125 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!--
+    Gazebo-specific properties for group30Bot
+    Source: W8 Practical (laser plugin), W6 Lecture (diff drive plugin)
+    Laser plugin reference: http://gazebosim.org
+    Construct tutorial: https://www.theconstruct.ai
+  -->
+
+  <!-- Chassis colour in Gazebo -->
+  <gazebo reference="base_link_chassis">
+    <material>Gazebo/Orange</material>
+  </gazebo>
+
+  <!-- Wheel physics properties -->
+  <!-- mu1/mu2 = friction coefficients, kp/kd = contact stiffness/damping -->
+  <gazebo reference="left_wheel">
+    <material>Gazebo/Blue</material>
+    <mu1>1.0</mu1>
+    <mu2>1.0</mu2>
+    <kp>1000000.0</kp>
+    <kd>100.0</kd>
+  </gazebo>
+
+  <gazebo reference="right_wheel">
+    <material>Gazebo/Blue</material>
+    <mu1>1.0</mu1>
+    <mu2>1.0</mu2>
+    <kp>1000000.0</kp>
+    <kd>100.0</kd>
+  </gazebo>
+
+  <!-- Caster wheel - low friction to roll -->
+  <gazebo reference="caster_link">
+    <mu1>0.01</mu1>
+    <mu2>0.01</mu2>
+    <kp>1000000</kp>
+    <kd>100</kd>
+  </gazebo>
+
+  <!-- Laser sensor colour -->
+  <gazebo reference="laser_sensor">
+    <material>Gazebo/Grey</material>
+  </gazebo>
+
+  <!--
+    Differential drive plugin
+    Controls left and right wheel joints to move the robot
+    Subscribes to: /group30Bot/cmd_vel (Twist messages)
+    Publishes to: /odom (Odometry messages)
+    Source: W6 Lecture, com760Bot.urdf provided file
+    Fixing missing odometrySource with 1 more accurate in sim
+    Fixing publushOdomTF with true as needed for navigation
+    Fixing missing publishTf with 1 to enable
+  -->
+  <gazebo>
+    <plugin filename="libgazebo_ros_diff_drive.so" name="differential_drive_controller">
+      <alwaysOn>true</alwaysOn>
+      <updateRate>20</updateRate>
+      <leftJoint>left_wheel_hinge</leftJoint>
+      <rightJoint>right_wheel_hinge</rightJoint>
+      <wheelSeparation>0.3</wheelSeparation>
+      <wheelDiameter>0.2</wheelDiameter>
+      <torque>0.3</torque>
+      <wheelAcceleration>0.8</wheelAcceleration>
+      <commandTopic>/group30Bot/cmd_vel</commandTopic>
+      <odometryTopic>odom</odometryTopic>
+      <odometryFrame>odom</odometryFrame>
+      <odometrySource>1</odometrySource>
+      <robotBaseFrame>base_link_chassis</robotBaseFrame>
+      <publishOdomTF>true</publishOdomTF>
+      <publishTf>1</publishTf>
+      <legacyMode>false</legacyMode>
+    </plugin>
+  </gazebo>
+
+  <!--
+    Laser scan sensor plugin
+    Simulates a Hokuyo style laser rangefinder
+    Publishes to: /group30Bot/laser/scan (LaserScan messages)
+    Source: W8 Practical, W8 Lecture
+    Plugin reference: http://gazebosim.org -->
+  <gazebo reference="laser_sensor">
+    <sensor type="ray" name="head_hokuyo_sensor">
+      <pose>0 0 0 0 0 0</pose>
+      <!-- true shows laser rays in Gazebo -->
+      <visualize>true</visualize>
+      <!-- How many times per second the sensor fires -->
+      <update_rate>20</update_rate>
+      <ray>
+        <scan>
+          <horizontal>
+            <!-- 720 samples covering 180 degrees = 0.25 degrees per reading -->
+            <!-- Source: W8 Lecture -->
+            <samples>720</samples>
+            <resolution>1</resolution>
+            <min_angle>-1.570796</min_angle>
+            <max_angle>1.570796</max_angle>
+          </horizontal>
+        </scan>
+        <range>
+          <!-- Readings below 0.10m return 0, above 10.0m return inf -->
+          <!-- Source: W8 Lecture -->
+          <min>0.10</min>
+          <max>10.0</max>
+          <resolution>0.01</resolution>
+        </range>
+        <noise>
+          <!-- Gaussian noise simulates real sensor imperfection -->
+          <type>gaussian</type>
+          <mean>0.0</mean>
+          <stddev>0.01</stddev>
+        </noise>
+      </ray>
+      <plugin name="gazebo_ros_head_hokuyo_controller" filename="libgazebo_ros_laser.so">
+        <!-- Topic name for laser data -->
+        <topicName>/group30Bot/laser/scan</topicName>
+        <!-- laser_sensor link name defined in main xacro -->
+        <frameName>laser_sensor</frameName>
+      </plugin>
+    </sensor>
+  </gazebo>
+
+</robot>

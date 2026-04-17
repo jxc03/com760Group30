@@ -1,0 +1,52 @@
+<?xml version="1.0"?>
+<launch>
+
+  <!--
+    Launch file for group30Bot in Gazebo
+    Source: W8 Practical, W5 Practical 
+    
+    Launches:
+    1. Gazebo with the provided world file
+    2. Robot state publisher (broadcasts TF transforms)
+    3. Spawns group30Bot into Gazebo
+  -->
+
+  <!-- Path to the world file -->
+  <arg name="world_name" default="$(find com760cw2_group30)/world/com760World.world"/>
+
+  <!-- Initial robot position in the world -->
+  <arg name="x" default="0.0"/>
+  <arg name="y" default="0.0"/>
+  <arg name="z" default="0.1"/>
+
+  <!-- Launch Gazebo with our world -->
+  <include file="$(find gazebo_ros)/launch/empty_world.launch">
+    <arg name="world_name" value="$(arg world_name)"/>
+    <arg name="paused" value="false"/>
+    <arg name="use_sim_time" value="true"/>
+    <arg name="gui" value="true"/>
+  </include>
+
+  <!-- 
+    Load robot description from xacro file
+    xacro processes the file and outputs standard URDF XML
+  -->
+  <param name="robot_description" 
+         command="$(find xacro)/xacro $(find com760cw2_group30)/urdf/group30Bot.xacro"/>
+
+  <!-- Robot state publisher - broadcasts TF transforms between links -->
+  <node name="robot_state_publisher" pkg="robot_state_publisher" 
+        type="robot_state_publisher" respawn="false" output="screen"/>
+
+  <!--
+    Spawn the robot in Gazebo
+    5 second delay allows Gazebo to fully initialise first
+    Source: W8 Practical - "launch-prefix to delay spawn_urdf"
+  -->
+  <node name="spawn_urdf" pkg="gazebo_ros" type="spawn_model"
+        args="-param robot_description -urdf -model group30Bot 
+              -x $(arg x) -y $(arg y) -z $(arg z)"
+        launch-prefix="bash -c 'sleep 5; $0 $@'"
+        output="screen"/>
+
+</launch>

@@ -1,3 +1,4 @@
+
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
 
@@ -50,9 +51,7 @@
     Subscribes to: /group30Bot/cmd_vel (Twist messages)
     Publishes to: /odom (Odometry messages)
     Source: W6 Lecture, com760Bot.urdf provided file
-    Fixing missing odometrySource with 1 more accurate in sim
     Fixing publushOdomTF with true as needed for navigation
-    Fixing missing publishTf with 1 to enable
   -->
   <gazebo>
     <plugin filename="libgazebo_ros_diff_drive.so" name="differential_drive_controller">
@@ -63,14 +62,18 @@
       <wheelSeparation>0.3</wheelSeparation>
       <wheelDiameter>0.2</wheelDiameter>
       <torque>0.3</torque>
+      <wheelTorque>0.3</wheelTorque>
       <wheelAcceleration>0.8</wheelAcceleration>
       <commandTopic>/group30Bot/cmd_vel</commandTopic>
       <odometryTopic>odom</odometryTopic>
       <odometryFrame>odom</odometryFrame>
-      <odometrySource>1</odometrySource>
+      <odometrySource>world</odometrySource>
       <robotBaseFrame>base_link_chassis</robotBaseFrame>
+      <publishWheelTF>false</publishWheelTF>
       <publishOdomTF>true</publishOdomTF>
+      <publishWheelJointState>false</publishWheelJointState>
       <publishTf>1</publishTf>
+      <rosDebugLevel>na</rosDebugLevel>
       <legacyMode>false</legacyMode>
     </plugin>
   </gazebo>

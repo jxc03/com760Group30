@@ -20,6 +20,11 @@
 # Reference: W10 Practical (Q-Learning navigation)
 # Activated via MineRescueSetQLStatus service
 # Uses RLAction and RLReward custom messages for action/reward communication
+#
+# Improvements merged from M3 (Salman):
+#   - reset_episode() method: separates episode reset logic cleanly
+#   - Laser noise filter: r > 0.05 prevents false collision from sensor noise
+#   - laser_zones initialised to safe default before first callback fires
 
 import rospy
 import math
@@ -81,7 +86,7 @@ class QLearning:
         self.goal.y = 0.0
 
         # Survivor locations for reward shaping
-        # Must match SurvivorDetector.py
+        # Coordinates match world file (school_rescue.world) and SurvivorDetector.py
         self.survivors = [
             {'id': 1, 'x': -6.0, 'y':  3.0, 'found': False},
             {'id': 2, 'x':  0.0, 'y': -3.0, 'found': False},
@@ -93,6 +98,9 @@ class QLearning:
         self.position       = Point()
         self.yaw            = 0.0
         self.prev_dist_goal = float('inf')
+
+        # Improvement (M3): initialise laser_zones to safe default list so it
+        # is never read as None before the first laser callback fires
         self.laser_zones    = [0] * self.N_ZONES
         self.obs_threshold  = 0.5   # obstacle detection threshold (metres)
 
@@ -130,7 +138,8 @@ class QLearning:
 
         rospy.loginfo('=' * 50)
         rospy.loginfo('[QLearning] School rescue Q-Learning ready!')
-        rospy.loginfo('[QLearning] States: %d  Actions: %d', self.N_STATES, self.N_ACTIONS)
+        rospy.loginfo('[QLearning] States: %d  Actions: %d',
+                      self.N_STATES, self.N_ACTIONS)
         rospy.loginfo('[QLearning] Call q_learning_switch to start training.')
         rospy.loginfo('=' * 50)
 
@@ -154,7 +163,7 @@ class QLearning:
             self.epsilon      = req.epsilon       if req.epsilon > 0       else 0.9
             self.max_episodes = req.max_episodes  if req.max_episodes > 0  else 500
             self.episode      = 0
-            # Reset survivors for fresh training episode
+            # Reset survivors for fresh training
             for s in self.survivors:
                 s['found'] = False
             self.survivors_found = 0
@@ -194,9 +203,14 @@ class QLearning:
         max_r  = msg.range_max
         n      = len(ranges)
         s      = max(1, int(n * 30 / 360))
-        # Clean invalid readings
-        clean = [r if (not math.isnan(r) and not math.isinf(r))
-                 else max_r for r in ranges]
+
+        # Improvement (M3): filter r > 0.05 in addition to nan/inf checks
+        # Prevents sensor noise very close to the robot causing false collisions
+        clean = [r if (not math.isnan(r) and
+                       not math.isinf(r) and
+                       r > 0.05) else max_r
+                 for r in ranges]
+
         # Extract 5 directional zones
         raw = {
             'front':       min(min(clean[-s:]), min(clean[:s])),
@@ -258,23 +272,24 @@ class QLearning:
             if dist < 1.5:
                 survivor['found'] = True
                 self.survivors_found += 1
-                rospy.logwarn('*** QL: SURVIVOR %d FOUND! Location: (%.1f, %.1f) ***',
-                              survivor['id'], survivor['x'], survivor['y'])
-                return 100  # large positive reward for finding survivor
+                rospy.logwarn(
+                    '*** QL: SURVIVOR %d FOUND! Location: (%.1f, %.1f) ***',
+                    survivor['id'], survivor['x'], survivor['y'])
+                return 100  # large positive reward
         return 0
 
     def calculate_reward(self):
         """Calculate reward signal for current state.
         Reward structure:
-          -1 per step (encourages efficiency)
-          -100 for collision (front zone obstacle)
-          +100 for reaching goal
+          -1  per step (encourages efficiency)
+          -100 for collision (front 3 zones blocked)
+          +100 for reaching emergency base
           +100 for finding a survivor
-          +5 for moving closer to goal
-          -5 for moving further from goal
+          +5  for moving closer to goal
+          -5  for moving further from goal
         Reference: W10 Lecture (Reward shaping)"""
         dist         = self.distance_to_goal()
-        collision    = any(z == 1 for z in self.laser_zones[:3])  # front 3 zones
+        collision    = any(z == 1 for z in self.laser_zones[:3])
         goal_reached = dist < 0.35
 
         survivor_reward = self.check_survivors()
@@ -288,9 +303,9 @@ class QLearning:
         elif survivor_reward > 0:
             reward = survivor_reward
         elif dist < self.prev_dist_goal:
-            reward += 5   # closer to goal
+            reward += 5
         else:
-            reward -= 5   # further from goal
+            reward -= 5
 
         self.prev_dist_goal = dist
 
@@ -315,10 +330,24 @@ class QLearning:
             current + self.alpha * (
                 reward + self.gamma * best_next - current))
 
+    def reset_episode(self):
+        """Stop robot, pause, then reset tracking variables for next episode.
+        Improvement (M3): separates reset logic into its own method for
+        clarity and reusability rather than inline in run_step."""
+        self.stop_robot()
+        rospy.sleep(1.0)
+        # Reset survivor flags for next episode
+        for s in self.survivors:
+            s['found'] = False
+        self.survivors_found = 0
+        # Reset distance tracker from current position after stop
+        self.prev_dist_goal = self.distance_to_goal()
+
     def run_step(self):
-        """Execute one Q-Learning step: observe, act, reward, update."""
+        """Execute one Q-Learning step: observe state, act, get reward, update Q-table."""
         if self.episode >= self.max_episodes:
-            rospy.loginfo('[QLearning] Training complete! %d episodes.', self.episode)
+            rospy.loginfo(
+                '[QLearning] Training complete! %d episodes.', self.episode)
             self.active = False
             self.save_q_table()
             return
@@ -326,7 +355,7 @@ class QLearning:
         state  = self.get_state()
         action = self.choose_action(state)
         self.execute_action(action)
-        rospy.sleep(0.2)   # allow action to take effect
+        rospy.sleep(0.2)   # allow action to take effect before sensing
 
         next_state = self.get_state()
         reward, collision, done = self.calculate_reward()
@@ -348,20 +377,14 @@ class QLearning:
             self.step_count   = 0
             self.total_reward = 0.0
 
-            # Decay epsilon - less exploration as training progresses
-            # Reference: W10 Lecture (Epsilon decay)
+            # Decay epsilon - less random exploration as training progresses
+            # Reference: W10 Lecture (Epsilon decay schedule)
             self.epsilon = max(
                 self.epsilon_min,
                 self.epsilon * self.epsilon_decay)
 
-            # Reset survivors for next episode
-            for s in self.survivors:
-                s['found'] = False
-            self.survivors_found = 0
-
-            self.stop_robot()
-            rospy.sleep(1.0)
-            self.prev_dist_goal = self.distance_to_goal()
+            # Improvement (M3): use reset_episode() for clean separation
+            self.reset_episode()
 
     # ------------------------------------------------------------------
     # Q-table persistence
@@ -377,7 +400,7 @@ class QLearning:
             rospy.logwarn('[QLearning] Could not save Q-table: %s', e)
 
     def load_q_table(self):
-        """Load Q-table from disk if it exists."""
+        """Load Q-table from disk if it exists - continues previous training."""
         if os.path.exists(self.q_table_path):
             try:
                 with open(self.q_table_path, 'rb') as f:

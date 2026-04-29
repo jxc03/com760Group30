@@ -27,11 +27,11 @@ class SurvivorDetector:
 
         # Survivor locations - MUST match Bug2.py waypoints and world model positions
         self.survivors = [
-            {'id': 1, 'x': -8.0, 'y':  3.0,
+            {'id': 1, 'x': -6.0, 'y':  3.0,
              'found': False, 'type': 'Child'},
             {'id': 2, 'x':  0.0, 'y': -3.0,
              'found': False, 'type': 'Teacher'},
-            {'id': 3, 'x':  7.0, 'y':  3.0,
+            {'id': 3, 'x':  5.0, 'y':  3.0,
              'found': False, 'type': 'Child'},
         ]
 

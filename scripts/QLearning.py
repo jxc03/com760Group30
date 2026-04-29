@@ -83,9 +83,9 @@ class QLearning:
         # Survivor locations for reward shaping
         # Must match SurvivorDetector.py
         self.survivors = [
-            {'id': 1, 'x': -8.0, 'y':  3.0, 'found': False},
+            {'id': 1, 'x': -6.0, 'y':  3.0, 'found': False},
             {'id': 2, 'x':  0.0, 'y': -3.0, 'found': False},
-            {'id': 3, 'x':  7.0, 'y':  3.0, 'found': False},
+            {'id': 3, 'x':  5.0, 'y':  3.0, 'found': False},
         ]
         self.survivors_found = 0
 

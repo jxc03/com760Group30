@@ -58,9 +58,9 @@ class Bug2:
         # IMPORTANT: coordinates must match SurvivorDetector.py and world file
         # Reference: Assignment Brief - "goal pose" for navigation
         self.waypoints = [
-            (-8.0,  3.0),   # Child 1  - NW classroom
+            (-6.0,  3.0),   # Child 1  - NW classroom
             ( 0.0, -3.0),   # Teacher  - south corridor
-            ( 7.0,  3.0),   # Child 2  - east corridor
+            ( 5.0,  3.0),   # Child 2  - east corridor
             (11.0,  0.0),   # Emergency base - mission complete
         ]
         self.waypoint_labels = [

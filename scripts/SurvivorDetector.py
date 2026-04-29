@@ -57,9 +57,9 @@ class SurvivorDetector:
         rospy.loginfo('=' * 50)
         rospy.loginfo('[SchoolRescue] Robot deployed to collapsed school!')
         rospy.loginfo('[SchoolRescue] Searching for 3 survivors...')
-        rospy.loginfo('[SchoolRescue] Child 1  at (-8.0,  3.0)')
+        rospy.loginfo('[SchoolRescue] Child 1  at (-6.0,  3.0)')
         rospy.loginfo('[SchoolRescue] Teacher  at ( 0.0, -3.0)')
-        rospy.loginfo('[SchoolRescue] Child 2  at ( 7.0,  3.0)')
+        rospy.loginfo('[SchoolRescue] Child 2  at ( 5.0,  3.0)')
         rospy.loginfo('[SchoolRescue] Detection range: %.1f m', self.detection_range)
         rospy.loginfo('=' * 50)
 

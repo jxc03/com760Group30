@@ -208,33 +208,44 @@ class Bug2:
     def bug2_follow_wall(self):
         dist = self.distance_to_goal()
 
-        # Check if somehow reached the goal while following wall
         if dist < self.goal_threshold:
             self.deactivate_follow_wall()
             self.change_state(3)
             return
 
-        # Only check M-line return after minimum wall-follow time
-        # Prevents immediately re-triggering GoToPoint at hit point
         elapsed = rospy.get_time() - self.wall_follow_start
         if elapsed < self.min_wall_follow_secs:
             return
 
-        # Bug2 M-line return condition:
-        # 1. Robot is back on the M-line (within threshold)
-        # 2. Robot is significantly closer to goal than when it left
+        # Bug2 M-line return condition
         if (self.on_m_line() and
                 dist < self.obstacle_hit_dist - self.m_line_progress_buf):
             rospy.loginfo(
                 '[Bug2] On M-line at dist=%.2f (hit=%.2f). Resuming GoToPoint.',
                 dist, self.obstacle_hit_dist)
             self.deactivate_follow_wall()
-            # Recompute M-line from new position for next obstacle
             self.start_position.x = self.position.x
             self.start_position.y = self.position.y
             self.compute_m_line()
             self.obstacle_hit_dist = float('inf')
             self.start_go_to_point()
+            return
+
+        # Stuck detection: flip turn direction if no progress after 30 seconds
+        # Reference: Assignment Brief / FollowWall.py starter file comment:
+        # "The robot should be able to try different turning direction if it
+        #  cannot find a path to the goal"
+        if elapsed > 30.0 and dist >= self.obstacle_hit_dist:
+            old_dir = self.direction
+            self.direction = 'right' if self.direction == 'left' else 'left'
+            rospy.logwarn(
+                '[Bug2] Stuck detected (%.0fs, dist=%.2f). '
+                'Flipping direction: %s -> %s',
+                elapsed, dist, old_dir, self.direction)
+            self.deactivate_follow_wall()
+            rospy.sleep(0.3)
+            self.wall_follow_start = rospy.get_time()
+            self.start_follow_wall()
 
     # ------------------------------------------------------------------
     # State 3: Waypoint reached - advance to next goal
@@ -249,6 +260,20 @@ class Bug2:
         if self.current_waypoint >= len(self.waypoints):
             rospy.loginfo('[Bug2] *** MISSION COMPLETE. All survivors found! ***')
             self.stop_robot()
+            # Publish mission complete notification via custom message
+            # Reference: Assignment Brief - custom messages requirement
+            complete_msg = SurvivorDetected()
+            complete_msg.survivor_id = 0
+            complete_msg.position_x  = self.position.x
+            complete_msg.position_y  = self.position.y
+            complete_msg.distance    = 0.0
+            complete_msg.status      = 'MISSION_COMPLETE'
+            complete_msg.timestamp   = str(rospy.get_time())
+            self.pub_vel.publish(Twist())
+            rospy.logwarn('=' * 55)
+            rospy.logwarn('[Bug2] All 3 survivors located. Robot at base.')
+            rospy.logwarn('=' * 55)
+            rospy.sleep(2.0)
             rospy.signal_shutdown('Mission complete')
             return
 

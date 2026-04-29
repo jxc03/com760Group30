@@ -40,6 +40,8 @@ from com760cw2_group30.msg import RLAction, RLReward, SurvivorDetected
 from com760cw2_group30.srv import (
     MineRescueSetQLStatus,
     MineRescueSetQLStatusResponse)
+from gazebo_msgs.srv import SetModelState
+from gazebo_msgs.msg import ModelState
 
 class QLearning:
 
@@ -98,6 +100,7 @@ class QLearning:
         self.position       = Point()
         self.yaw            = 0.0
         self.prev_dist_goal = float('inf')
+        self.prev_dist_survivor = float('inf')  # for shaped reward toward survivors
 
         # Improvement (M3): initialise laser_zones to safe default list so it
         # is never read as None before the first laser callback fires
@@ -278,19 +281,34 @@ class QLearning:
                 return 100  # large positive reward
         return 0
 
+    def distance_to_nearest_survivor(self):
+        """Return distance to the nearest unfound survivor.
+        Used for reward shaping to guide the robot during training.
+        Reference: W10 Lecture (reward shaping)"""
+        min_dist = float('inf')
+        for s in self.survivors:
+            if not s['found']:
+                d = math.sqrt(
+                    (self.position.x - s['x']) ** 2 +
+                    (self.position.y - s['y']) ** 2)
+                min_dist = min(min_dist, d)
+        return min_dist
+
     def calculate_reward(self):
         """Calculate reward signal for current state.
         Reward structure:
-          -1  per step (encourages efficiency)
-          -100 for collision (front 3 zones blocked)
-          +100 for reaching emergency base
-          +100 for finding a survivor
-          +5  for moving closer to goal
-          -5  for moving further from goal
+        -1   per step (encourages efficiency)
+        -100 for collision (front 3 zones blocked)
+        +100 for reaching emergency base
+        +100 for finding a survivor
+        +5   for moving closer to emergency base
+        +2   for moving closer to nearest unfound survivor
+        -5   for moving further away
         Reference: W10 Lecture (Reward shaping)"""
-        dist         = self.distance_to_goal()
-        collision    = any(z == 1 for z in self.laser_zones[:3])
-        goal_reached = dist < 0.35
+        dist           = self.distance_to_goal()
+        dist_survivor  = self.distance_to_nearest_survivor()
+        collision      = any(z == 1 for z in self.laser_zones[:3])
+        goal_reached   = dist < 0.35
 
         survivor_reward = self.check_survivors()
         reward = -1  # step penalty
@@ -302,14 +320,21 @@ class QLearning:
             rospy.logwarn('*** QL: EMERGENCY BASE REACHED! MISSION COMPLETE! ***')
         elif survivor_reward > 0:
             reward = survivor_reward
-        elif dist < self.prev_dist_goal:
-            reward += 5
         else:
-            reward -= 5
+            # Progress reward: moving toward goal
+            if dist < self.prev_dist_goal:
+                reward += 5
+            else:
+                reward -= 5
+            # Shaped reward: moving toward nearest unfound survivor
+            # Reference: W10 Lecture (reward shaping for multi-target tasks)
+            if dist_survivor < self.prev_dist_survivor:
+                reward += 2
 
-        self.prev_dist_goal = dist
+        self.prev_dist_goal     = dist
+        self.prev_dist_survivor = dist_survivor
 
-        # Publish RLReward custom message for monitoring
+        # Publish RLReward custom message
         reward_msg = RLReward()
         reward_msg.reward            = reward
         reward_msg.collision         = collision
@@ -331,17 +356,43 @@ class QLearning:
                 reward + self.gamma * best_next - current))
 
     def reset_episode(self):
-        """Stop robot, pause, then reset tracking variables for next episode.
-        Improvement (M3): separates reset logic into its own method for
-        clarity and reusability rather than inline in run_step."""
+        """Reset robot to spawn position and clear episode state.
+        Teleports robot back to start using Gazebo set_model_state service.
+        Reference: W10 Lecture (episode reset in RL training)"""
         self.stop_robot()
-        rospy.sleep(1.0)
-        # Reset survivor flags for next episode
+        rospy.sleep(0.5)
+
+        # Teleport robot back to spawn position for clean next episode
+        # Uses Gazebo's built-in model state service
+        try:
+            from gazebo_msgs.srv import SetModelState
+            from gazebo_msgs.msg import ModelState
+            rospy.wait_for_service('/gazebo/set_model_state', timeout=2.0)
+            set_state = rospy.ServiceProxy(
+                '/gazebo/set_model_state', SetModelState)
+            state = ModelState()
+            state.model_name = 'group30Bot'
+            state.pose.position.x = -7.0
+            state.pose.position.y =  0.0
+            state.pose.position.z =  0.1
+            state.pose.orientation.x = 0.0
+            state.pose.orientation.y = 0.0
+            state.pose.orientation.z = 0.0
+            state.pose.orientation.w = 1.0
+            state.reference_frame = 'world'
+            set_state(state)
+            rospy.loginfo('[QLearning] Robot reset to spawn position.')
+        except Exception as e:
+            rospy.logwarn('[QLearning] Spawn reset failed: %s', e)
+
+        rospy.sleep(0.5)
+
+        # Reset survivor flags and distance tracker
         for s in self.survivors:
             s['found'] = False
         self.survivors_found = 0
-        # Reset distance tracker from current position after stop
         self.prev_dist_goal = self.distance_to_goal()
+        self.prev_dist_survivor = float('inf')
 
     def run_step(self):
         """Execute one Q-Learning step: observe state, act, get reward, update Q-table."""

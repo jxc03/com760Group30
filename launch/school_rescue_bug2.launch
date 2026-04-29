@@ -1,0 +1,111 @@
+<?xml version="1.0"?>
+<launch>
+
+  <!--
+    COM760 Group 30 - Collapsed School Rescue Robot
+    Launch file: school_rescue_bug2.launch
+    
+    Launches full Bug2 navigation system for school rescue scenario:
+      1. Gazebo with school_rescue.world
+      2. Spawns group30Bot at start position (-7.0, 0.0)
+      3. Robot state publisher for TF transforms
+      4. GoToPoint node  - drives toward goal along M-line
+      5. FollowWall node - follows obstacle when M-line is blocked
+      6. Bug2 node       - master coordinator (Bug2 algorithm)
+      7. SurvivorDetector node - detects survivors by proximity
+    
+    Usage:
+      roslaunch com760cw2_group30 school_rescue_bug2.launch
+    
+    Reference: W8 Practical Part B and C (launch file structure)
+  -->
+
+  <!-- Navigation threshold parameters -->
+  <!-- th_yaw: acceptable heading error in degrees before driving forward -->
+  <!-- th_dist: acceptable distance in metres to consider goal reached -->
+  <param name="th_yaw"  value="2.0"/>
+  <param name="th_dist" value="0.25"/>
+
+  <!-- Load robot description from xacro file -->
+  <!-- Xacro processes the file and outputs standard URDF XML -->
+  <!-- Reference: W6/W7 Lectures (xacro), W8 Practical Part C -->
+  <param name="robot_description"
+    command="$(find xacro)/xacro $(find com760cw2_group30)/urdf/group30Bot.xacro"/>
+
+  <!-- Launch Gazebo with school rescue world -->
+  <!-- Reference: W5 Practical (Gazebo setup) -->
+  <include file="$(find gazebo_ros)/launch/empty_world.launch">
+    <arg name="world_name"
+      value="$(find com760cw2_group30)/world/school_rescue.world"/>
+    <arg name="paused"    value="false"/>
+    <arg name="use_sim_time" value="true"/>
+    <arg name="gui"       value="true"/>
+    <arg name="headless"  value="false"/>
+    <arg name="debug"     value="false"/>
+  </include>
+
+  <!--
+    Spawn robot into Gazebo
+    Start position: (-7.0, 0.0, 0.1) - west end of school building
+    5 second delay allows Gazebo to fully initialise first
+    Reference: W8 Practical Part C (spawn with delay)
+  -->
+  <node name="urdf_spawner" pkg="gazebo_ros" type="spawn_model"
+    respawn="false" output="screen"
+    args="-urdf -model group30Bot
+          -param robot_description
+          -x -7.0 -y 0.0 -z 0.1"
+    launch-prefix="bash -c 'sleep 5; $0 $@'"/>
+
+  <!-- Robot state publisher: broadcasts TF transforms between all links -->
+  <node name="robot_state_publisher"
+    pkg="robot_state_publisher"
+    type="robot_state_publisher"
+    output="screen"/>
+
+  <!--
+    GoToPoint node
+    State machine: Fix heading -> Go straight -> Goal reached
+    Activated by Bug2 via go_to_point_switch service
+    Reference: W8 Lecture Slides 31-36, GoToPoint.py
+  -->
+  <node name="go_to_point"
+    pkg="com760cw2_group30"
+    type="GoToPoint.py"
+    output="screen"/>
+
+  <!--
+    FollowWall node
+    State machine: Find wall -> Turn -> Follow wall
+    Activated by Bug2 via wall_follower_switch service
+    Reference: W8 Lecture Slides 38-41, FollowWall.py
+  -->
+  <node name="follow_wall"
+    pkg="com760cw2_group30"
+    type="FollowWall.py"
+    output="screen"/>
+
+  <!--
+    Bug2 coordinator node
+    Master controller implementing Bug2 algorithm
+    Controls GoToPoint and FollowWall via services
+    Navigates: Child 1 -> Teacher -> Child 2 -> Emergency Base
+    Reference: W8/W9 Lectures (Bug algorithms), Bug2.py
+  -->
+  <node name="bug2_coordinator"
+    pkg="com760cw2_group30"
+    type="Bug2.py"
+    output="screen"/>
+
+  <!--
+    SurvivorDetector node
+    Monitors odometry, publishes SurvivorDetected custom message
+    when robot comes within 1.5m of a survivor location
+    Reference: Assignment Brief (custom messages), SurvivorDetector.py
+  -->
+  <node name="survivor_detector"
+    pkg="com760cw2_group30"
+    type="SurvivorDetector.py"
+    output="screen"/>
+
+</launch>

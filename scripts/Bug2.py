@@ -4,9 +4,9 @@
 # Bug2.py - Master coordinator implementing the Bug2 algorithm
 #
 # Mission: Navigate collapsed school building to find survivors
-#   Waypoint 1: Child 1    (-6.0,  3.0) - NW classroom
+#   Waypoint 1: Child 1    (-5.0,  3.0) - NW classroom
 #   Waypoint 2: Teacher    ( 0.0, -3.0) - south corridor
-#   Waypoint 3: Child 2    ( 5.0,  3.0) - east corridor
+#   Waypoint 3: Child 2    ( -6.0,  3.0) - east corridor
 #   Waypoint 4: Base       (11.0,  0.0) - emergency base (exit)
 #
 # Bug2 Algorithm (Lumelsky & Stepanov, 1987):
@@ -58,15 +58,15 @@ class Bug2:
         # IMPORTANT: coordinates must match SurvivorDetector.py and world file
         # Reference: Assignment Brief - "goal pose" for navigation
         self.waypoints = [
-            (-6.0,  3.0),   # Child 1  - NW classroom
+            ( 5.0,  3.0),   # Child 1  - NW classroom
             ( 0.0, -3.0),   # Teacher  - south corridor
-            ( 5.0,  3.0),   # Child 2  - east corridor
+            ( 6.0,  3.0),   # Child 2  - east corridor
             (11.0,  0.0),   # Emergency base - mission complete
         ]
         self.waypoint_labels = [
-            'Child 1 - NW Classroom',
+            'Child 1 - East Classroom',
             'Teacher - South Corridor',
-            'Child 2 - East Corridor',
+            'Child 2 - NW Corridor',
             'Emergency Base - Mission Complete',
         ]
         self.current_waypoint = 0

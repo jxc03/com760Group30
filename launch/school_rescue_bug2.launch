@@ -26,6 +26,16 @@
   <param name="th_yaw"  value="2.0"/>
   <param name="th_dist" value="0.25"/>
 
+  <!-- Survivor coordinates - edit here to change positions -->
+  <param name="survivor_1_x" value="-6.0"/>
+  <param name="survivor_1_y" value="3.0"/>
+  <param name="survivor_2_x" value="0.0"/>
+  <param name="survivor_2_y" value="-3.0"/>
+  <param name="survivor_3_x" value="5.0"/>
+  <param name="survivor_3_y" value="3.0"/>
+  <param name="ambulance_x"  value="11.0"/>
+  <param name="ambulance_y"  value="0.0"/>
+
   <!-- Load robot description from xacro file -->
   <!-- Xacro processes the file and outputs standard URDF XML -->
   <!-- Reference: W6/W7 Lectures (xacro), W8 Practical Part C -->
@@ -54,7 +64,7 @@
     respawn="false" output="screen"
     args="-urdf -model group30Bot
           -param robot_description
-          -x -7.0 -y 0.0 -z 0.1"
+          -x -4.0 -y 0.0 -z 0.1"
     launch-prefix="bash -c 'sleep 5; $0 $@'"/>
 
   <!-- Robot state publisher: broadcasts TF transforms between all links -->
@@ -107,5 +117,22 @@
     pkg="com760cw2_group30"
     type="SurvivorDetector.py"
     output="screen"/>
+  
+  <!-- Joint state publisher for RViz wheel visualisation -->
+  <node name="joint_state_publisher" pkg="joint_state_publisher"
+        type="joint_state_publisher"/>
 
+  <!-- RViz for visualising robot, laser scan and navigation -->
+  <!-- Reference: W8 Practical Part B -->
+  <node name="rviz" pkg="rviz" type="rviz"
+        args="-d $(find com760cw2_group30)/launch/group30Bot.rviz"
+        output="screen"
+        required="false"/>
+
+  <!-- Q-Learning node - inactive by default, activate via service call -->
+  <node name="q_learning"
+    pkg="com760cw2_group30"
+    type="QLearning.py"
+    output="screen"/>
+    
 </launch>

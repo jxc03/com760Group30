@@ -59,8 +59,11 @@ class FollowWall:
         self.follow_dist    = 0.55  # desired distance to maintain from wall
 
         # Minimum time in each state to prevent rapid flickering
-        self.last_change    = 0.0
-        self.min_state_time = 1.0   # seconds
+        self.last_change = 0.0
+        self.min_state_time = 1.0 # seconds
+        self.angular_speed = 0.5 # faster turning to clear corners
+        self.turn_clear_dist = 0.7 # front must be this clear before resuming
+        self.max_turn_secs = 4.0 # after this, back up instead of spinning
 
         # Publisher: sends velocity commands to robot
         # Topic: /group30Bot/cmd_vel (required by assignment brief)
@@ -143,24 +146,18 @@ class FollowWall:
         ranges = list(msg.ranges)
         max_r  = msg.range_max
         n      = len(ranges)
-
-        # Sector size: ±30 degrees from each direction
-        s = max(1, int(n * 30 / 360))
-
-        # Clean invalid readings: replace nan/inf with max range
-        clean = [r if (not math.isnan(r) and
-                       not math.isinf(r) and
-                       r > 0.05) else max_r
-                 for r in ranges]
-
-        # Front sector: covers both ends of the array (0° = front for 360° laser)
-        self.front = min(min(clean[-s:]), min(clean[:s]))
-
-        # Left and right sectors
-        self.left  = (min(clean[s * 3: n // 2])
-                      if s * 3 < n // 2 else max_r)
-        self.right = (min(clean[n // 2: -(s * 3)])
-                      if s * 3 < n // 2 else max_r)
+        s      = max(1, int(n * 30 / 360))
+        # Noise filter: r > 0.15 for cluttered school environment
+        clean  = [r if (not math.isnan(r) and
+                        not math.isinf(r) and
+                        r > 0.15) else max_r
+                for r in ranges]
+        # angle_min=-π: index 0=rear, index n//2=forward
+        # Reference: W8 Lecture Slide 19 (laser indexing)
+        mid = n // 2
+        self.front = min(clean[mid - s: mid + s])
+        self.left  = min(clean[mid + s: mid + s*3]) if mid + s*3 <= n else max_r
+        self.right = min(clean[mid - s*3: mid - s]) if mid - s*3 >= 0 else max_r
 
     # ------------------------------------------------------------------
     # State 0: Find wall - drive forward until obstacle detected
@@ -168,14 +165,14 @@ class FollowWall:
     # ------------------------------------------------------------------
 
     def find_wall(self):
+        # Immediately react if wall already in front on activation
+        # Prevents driving into obstacle during min_state_time window
+        if self.front < self.wall_threshold:
+            self.change_state(1)
+            return Twist()
         if rospy.get_time() - self.last_change > self.min_state_time:
-            if self.front < self.wall_threshold:
-                # Obstacle ahead - switch to turn
-                self.change_state(1)
-            elif self.left < 0.7 or self.right < 0.7:
-                # Wall alongside - switch to follow
+            if self.left < 0.7 or self.right < 0.7:
                 self.change_state(2)
-
         msg = Twist()
         msg.linear.x  = self.linear_speed
         msg.angular.z = 0.0
@@ -188,19 +185,25 @@ class FollowWall:
     # ------------------------------------------------------------------
 
     def turn(self):
-        if rospy.get_time() - self.last_change > 1.5:
-            if self.front > self.wall_threshold:
-                # Front clear - switch to follow
-                self.change_state(2)
-
+        """State 1: Rotate to clear obstacle.
+        After max_turn_secs, backs up instead of spinning forever.
+        Reference: W8 Lecture Slide 40, Assignment Brief (turning direction)"""
+        elapsed = rospy.get_time() - self.last_change
+        if elapsed > 1.5 and self.front > self.turn_clear_dist:
+            self.change_state(2)
+            return Twist()
         msg = Twist()
-        msg.linear.x  = 0.0
-        # Positive angular.z = counter-clockwise (left)
-        # Negative angular.z = clockwise (right)
-        # Reference: ROS right-hand rule, W8 Lecture Slide 25
-        msg.angular.z = (self.angular_speed
-            if self.turn_direction == 'left'
-            else -self.angular_speed)
+        if elapsed > self.max_turn_secs:
+            # Cannot clear front by spinning — back up to create clearance
+            msg.linear.x  = -self.linear_speed
+            msg.angular.z = (self.angular_speed * 0.4
+                if self.turn_direction == 'left'
+                else -self.angular_speed * 0.4)
+        else:
+            msg.linear.x  = 0.0
+            msg.angular.z = (self.angular_speed
+                if self.turn_direction == 'left'
+                else -self.angular_speed)
         return msg
 
     # ------------------------------------------------------------------
@@ -211,26 +214,20 @@ class FollowWall:
 
     def follow_the_wall(self):
         if rospy.get_time() - self.last_change > self.min_state_time:
-            if self.front < self.wall_threshold - 0.1:
-                # Obstacle ahead while following - turn
+            if self.front < self.wall_threshold:
                 self.change_state(1)
             elif self.left > 1.5 and self.right > 1.5:
-                # Lost the wall - find it again
                 self.change_state(0)
-
         msg = Twist()
         msg.linear.x = self.linear_speed
-
-        # Proportional correction to maintain follow_dist from wall
         if self.turn_direction == 'left':
-            # Following wall on right side
+            # Turned left → wall on RIGHT side
             error = self.follow_dist - self.right
-            msg.angular.z = max(-0.3, min(0.3, -error * 0.4))
-        else:
-            # Following wall on left side
-            error = self.follow_dist - self.left
             msg.angular.z = max(-0.3, min(0.3, error * 0.4))
-
+        else:
+            # Turned right → wall on LEFT side
+            error = self.follow_dist - self.left
+            msg.angular.z = max(-0.3, min(0.3, -error * 0.4))
         return msg
 
     # ------------------------------------------------------------------

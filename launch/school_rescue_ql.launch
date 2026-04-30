@@ -1,0 +1,47 @@
+<?xml version="1.0"?>
+<launch>
+  <!-- Q-Learning only launch - no Bug2 coordinator -->
+  <!-- Robot learns to navigate autonomously via Q-Learning -->
+  <!-- Reference: W10 Lecture (Q-Learning), W10 Practical -->
+
+  <param name="robot_description"
+    command="$(find xacro)/xacro $(find com760cw2_group30)/urdf/group30Bot.xacro"/>
+
+  <include file="$(find gazebo_ros)/launch/empty_world.launch">
+    <arg name="world_name"
+      value="$(find com760cw2_group30)/world/school_rescue.world"/>
+    <arg name="paused"       value="false"/>
+    <arg name="use_sim_time" value="true"/>
+    <arg name="gui"          value="true"/>
+  </include>
+
+  <node name="urdf_spawner" pkg="gazebo_ros" type="spawn_model"
+    respawn="false" output="screen"
+    args="-urdf -model group30Bot
+          -param robot_description
+          -x -4.0 -y 0.0 -z 0.1"
+    launch-prefix="bash -c 'sleep 5; $0 $@'"/>
+
+  <node name="robot_state_publisher"
+    pkg="robot_state_publisher"
+    type="robot_state_publisher"
+    output="screen"/>
+
+  <node name="q_learning"
+    pkg="com760cw2_group30"
+    type="QLearning.py"
+    output="screen"/>
+
+  <node name="survivor_detector"
+    pkg="com760cw2_group30"
+    type="SurvivorDetector.py"
+    output="screen"/>
+
+  <!-- Auto-start Q-Learning after 8s delay for Gazebo to settle -->
+  <node name="ql_autostart" pkg="rosservice" type="rosservice"
+    args="call --wait /q_learning_switch
+          '{flag: true, learning_rate: 0.5, discount: 0.9,
+            epsilon: 0.9, max_episodes: 500}'"
+    output="screen"
+    launch-prefix="bash -c 'sleep 8; &quot;$@&quot;' --"/>
+</launch>

@@ -54,20 +54,24 @@ class Bug2:
         self.position = Point()
         self.yaw      = 0.0
 
-        # Mission waypoints for search and rescue scenario
-        # IMPORTANT: coordinates must match SurvivorDetector.py and world file
+        # Mission waypoints - loaded from ROS parameter server
+        # Edit coordinates in school_rescue_bug2.launch, not here
         # Reference: Assignment Brief - "goal pose" for navigation
         self.waypoints = [
-            ( 5.0,  3.0),   # Child 1  - NW classroom
-            ( 0.0, -3.0),   # Teacher  - south corridor
-            ( 6.0,  3.0),   # Child 2  - east corridor
-            (11.0,  0.0),   # Emergency base - mission complete
+            (rospy.get_param('survivor_1_x', -6.0),
+            rospy.get_param('survivor_1_y',  3.0)),
+            (rospy.get_param('survivor_2_x',  0.0),
+            rospy.get_param('survivor_2_y', -3.0)),
+            (rospy.get_param('survivor_3_x',  5.0),
+            rospy.get_param('survivor_3_y',  3.0)),
+            (rospy.get_param('ambulance_x',  11.0),
+            rospy.get_param('ambulance_y',   0.0)),
         ]
         self.waypoint_labels = [
-            'Child 1 - East Classroom',
+            'Child 1 - NW Classroom',
             'Teacher - South Corridor',
-            'Child 2 - NW Corridor',
-            'Emergency Base - Mission Complete',
+            'Child 2 - East Corridor',
+            'Emergency Base - Return to Ambulance',
         ]
         self.current_waypoint = 0
 

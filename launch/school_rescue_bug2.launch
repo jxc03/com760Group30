@@ -45,7 +45,7 @@
 
   <!--
     Spawn robot into Gazebo
-    Start position: (-8.0, 0.0, 0.1) - outside west wall entrance, clear of building
+    Start position: (-4.0, 0.0, 0.1) - outside west wall entrance, clear of building
     5 second delay allows Gazebo to fully initialise first
     Reference: W8 Practical Part C (spawn with delay)
   -->
@@ -53,7 +53,7 @@
     respawn="false" output="screen"
     args="-urdf -model group30Bot
           -param robot_description
-          -x -12.0 -y 0.0 -z 0.1"
+          -x -4.0 -y 0.0 -z 0.1"
     launch-prefix="bash -c 'sleep 5; $0 $@'"/>
 
   <!-- Robot state publisher: broadcasts TF transforms between all links -->

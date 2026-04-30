@@ -8,9 +8,9 @@
 # known survivor location.
 #
 # Survivor locations (must match Bug2.py waypoints and world file):
-#   Child 1  at (-8.0,  3.0) - NW classroom
+#   Child 1  at (-6.0,  3.0) - NW classroom
 #   Teacher  at ( 0.0, -3.0) - south corridor
-#   Child 2  at ( 7.0,  3.0) - east corridor
+#   Child 2  at ( 5.0,  3.0) - east corridor
 #
 # Reference: Assignment Brief - custom messages requirement
 # Custom message: SurvivorDetected.msg

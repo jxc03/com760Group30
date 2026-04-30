@@ -1,23 +1,12 @@
 <?xml version="1.0"?>
 <launch>
 
-  <!--
-    COM760 Group 30 - Collapsed School Rescue Robot
-    Launch file: school_rescue_bug2.launch
-    
-    Launches full Bug2 navigation system for school rescue scenario:
-      1. Gazebo with school_rescue.world
-      2. Spawns group30Bot at start position (-7.0, 0.0)
-      3. Robot state publisher for TF transforms
-      4. GoToPoint node  - drives toward goal along M-line
-      5. FollowWall node - follows obstacle when M-line is blocked
-      6. Bug2 node       - master coordinator (Bug2 algorithm)
-      7. SurvivorDetector node - detects survivors by proximity
-    
-    Usage:
-      roslaunch com760cw2_group30 school_rescue_bug2.launch
-    
-    Reference: W8 Practical Part B and C (launch file structure)
+<!--
+    Spawn robot into Gazebo
+    Start position: (-12.0, 0.0) - outside west wall entrance
+    Robot enters building through gap in west wall and searches for survivors
+    5 second delay allows Gazebo to fully initialise first
+    Reference: W8 Practical Part C (spawn with delay)
   -->
 
   <!-- Navigation threshold parameters -->
@@ -56,7 +45,7 @@
 
   <!--
     Spawn robot into Gazebo
-    Start position: (-7.0, 0.0, 0.1) - west end of school building
+    Start position: (-8.0, 0.0, 0.1) - outside west wall entrance, clear of building
     5 second delay allows Gazebo to fully initialise first
     Reference: W8 Practical Part C (spawn with delay)
   -->
@@ -64,7 +53,7 @@
     respawn="false" output="screen"
     args="-urdf -model group30Bot
           -param robot_description
-          -x -4.0 -y 0.0 -z 0.1"
+          -x -12.0 -y 0.0 -z 0.1"
     launch-prefix="bash -c 'sleep 5; $0 $@'"/>
 
   <!-- Robot state publisher: broadcasts TF transforms between all links -->

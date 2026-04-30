@@ -25,34 +25,27 @@
          ============================================================ -->
 
     <!-- North wall — intact -->
-    <!-- West wall - split into two sections to create entrance gap at y=0 -->
-    <!-- Gap width: 2m (y=-1 to y=1) - wide enough for robot to enter -->
-    <model name="wall_west_north">
+    <model name="wall_north">
       <static>true</static>
-      <pose>-10 3 1.2 0 0 0</pose>
+      <pose>0 5 1.2 0 0 0</pose>
       <link name="link">
-        <collision name="col">
-          <geometry><box><size>0.35 4 2.4</size></box></geometry>
-        </collision>
+        <collision name="col"><geometry><box><size>22 0.35 2.4</size></box></geometry></collision>
         <visual name="vis">
-          <geometry><box><size>0.35 4 2.4</size></box></geometry>
-          <material><script><uri>file://media/materials/scripts/gazebo.material</uri>
-            <name>Gazebo/Wood</name></script></material>
+          <geometry><box><size>22 0.35 2.4</size></box></geometry>
+          <material><ambient>0.80 0.70 0.55 1</ambient><diffuse>0.80 0.70 0.55 1</diffuse></material>
         </visual>
       </link>
     </model>
 
-    <model name="wall_west_south">
+    <!-- North wall collapsed section (fallen outward, lying flat near y=5) -->
+    <model name="wall_north_fallen">
       <static>true</static>
-      <pose>-10 -3 1.2 0 0 0</pose>
+      <pose>-1 5.8 0.12 1.5708 0 0.10</pose>
       <link name="link">
-        <collision name="col">
-          <geometry><box><size>0.35 4 2.4</size></box></geometry>
-        </collision>
+        <collision name="col"><geometry><box><size>4.0 0.35 2.4</size></box></geometry></collision>
         <visual name="vis">
-          <geometry><box><size>0.35 4 2.4</size></box></geometry>
-          <material><script><uri>file://media/materials/scripts/gazebo.material</uri>
-            <name>Gazebo/Wood</name></script></material>
+          <geometry><box><size>4.0 0.35 2.4</size></box></geometry>
+          <material><ambient>0.75 0.65 0.50 1</ambient><diffuse>0.75 0.65 0.50 1</diffuse></material>
         </visual>
       </link>
     </model>
@@ -690,7 +683,7 @@
         </visual>
       </link>
     </model>
-
+    
     <!-- Rescue worker - mobile obstacle entering from east entrance -->
     <!-- Satisfies Assignment Brief p.2: "static AND mobile obstacles" -->
     <!-- Narrative: rescue team member entering building from outside -->

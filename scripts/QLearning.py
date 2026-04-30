@@ -206,13 +206,18 @@ class QLearning:
         max_r  = msg.range_max
         n      = len(ranges)
         s      = max(1, int(n * 30 / 360))
-
         # Improvement (M3): filter r > 0.05 in addition to nan/inf checks
         # Prevents sensor noise very close to the robot causing false collisions
         clean = [r if (not math.isnan(r) and
                        not math.isinf(r) and
                        r > 0.05) else max_r
                  for r in ranges]
+        
+        # angle_min=-π → index 0=rear, index n//2=forward (angle 0)
+        mid = n // 2
+        self.min_front_dist = min(clean[mid - s: mid + s])
+        front_rays = clean[mid - s: mid + s]
+        self.min_front_dist = min(front_rays)
 
         # Extract 5 directional zones
         raw = {
@@ -307,7 +312,7 @@ class QLearning:
         Reference: W10 Lecture (Reward shaping)"""
         dist           = self.distance_to_goal()
         dist_survivor  = self.distance_to_nearest_survivor()
-        collision      = any(z == 1 for z in self.laser_zones[:3])
+        collision = self.min_front_dist < self.collision_dist
         goal_reached   = dist < 0.35
 
         survivor_reward = self.check_survivors()
@@ -385,7 +390,8 @@ class QLearning:
         except Exception as e:
             rospy.logwarn('[QLearning] Spawn reset failed: %s', e)
 
-        rospy.sleep(0.5)
+        self.min_front_dist = float('inf')  # clear stale readings after teleport
+        rospy.sleep(2.0)  # allow fresh laser data to arrive
 
         # Reset survivor flags and distance tracker
         for s in self.survivors:
@@ -393,6 +399,8 @@ class QLearning:
         self.survivors_found = 0
         self.prev_dist_goal = self.distance_to_goal()
         self.prev_dist_survivor = float('inf')
+        self.min_front_dist = float('inf')   # raw minimum front distance
+        self.collision_dist = 0.20           # actual near-collision threshold
 
     def run_step(self):
         """Execute one Q-Learning step: observe state, act, get reward, update Q-table."""

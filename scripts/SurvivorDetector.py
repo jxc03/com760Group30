@@ -19,26 +19,37 @@ import rospy
 import math
 from nav_msgs.msg import Odometry
 from com760cw2_group30.msg import SurvivorDetected
+from com760cw2_group30.srv import (
+    MineRescueSetBugStatus,
+    MineRescueSetBugStatusRequest)
 
 class SurvivorDetector:
 
     def __init__(self):
         rospy.init_node('survivor_detector')
 
-        # Survivor locations - MUST match Bug2.py waypoints and world model positions
+        # Survivor positions from ROS parameter server
+        # Edit coordinates in school_rescue_bug2.launch, not here
+        # Reference: Assignment Brief - custom messages requirement
         self.survivors = [
-            {'id': 1, 'x': -6.0, 'y':  3.0,
-             'found': False, 'type': 'Child'},
-            {'id': 2, 'x':  0.0, 'y': -3.0,
-             'found': False, 'type': 'Teacher'},
-            {'id': 3, 'x':  5.0, 'y':  3.0,
-             'found': False, 'type': 'Child'},
+            {'id': 1,
+            'x': rospy.get_param('survivor_1_x', -6.0),
+            'y': rospy.get_param('survivor_1_y',  3.0),
+            'found': False, 'type': 'Survivor'},
+            {'id': 2,
+            'x': rospy.get_param('survivor_2_x',  0.0),
+            'y': rospy.get_param('survivor_2_y', -3.0),
+            'found': False, 'type': 'Survivor'},
+            {'id': 3,
+            'x': rospy.get_param('survivor_3_x',  5.0),
+            'y': rospy.get_param('survivor_3_y',  3.0),
+            'found': False, 'type': 'Survivor'},
         ]
+        self.homing_sent = False
 
         # Detection range in metres
         # Robot must be within this distance to trigger detection
-        self.detection_range = 1.5
-
+        self.detection_range = 2.0
         self.position_x  = 0.0
         self.position_y  = 0.0
         self.total_found = 0
@@ -55,12 +66,14 @@ class SurvivorDetector:
             '/odom', Odometry, self.callback_odom)
 
         rospy.loginfo('=' * 50)
-        rospy.loginfo('[SchoolRescue] Robot deployed to collapsed school!')
-        rospy.loginfo('[SchoolRescue] Searching for 3 survivors...')
-        rospy.loginfo('[SchoolRescue] Child 1  at (-6.0,  3.0)')
-        rospy.loginfo('[SchoolRescue] Teacher  at ( 0.0, -3.0)')
-        rospy.loginfo('[SchoolRescue] Child 2  at ( 5.0,  3.0)')
-        rospy.loginfo('[SchoolRescue] Detection range: %.1f m', self.detection_range)
+        rospy.loginfo('[SurvivorDetector] Mission targets (from parameter server):')
+        for s in self.survivors:
+            rospy.loginfo('[SurvivorDetector]   Survivor %d at (%.1f, %.1f)',
+                          s['id'], s['x'], s['y'])
+        rospy.loginfo('[SurvivorDetector]   Ambulance at (%.1f, %.1f)',
+                      rospy.get_param('ambulance_x', 11.0),
+                      rospy.get_param('ambulance_y',  0.0))
+        rospy.loginfo('[SurvivorDetector] Detection range: %.1f m', self.detection_range)
         rospy.loginfo('=' * 50)
 
         # Check for survivors at 5Hz
@@ -113,7 +126,39 @@ class SurvivorDetector:
                     rospy.logwarn('*** ALL SURVIVORS FOUND! ***')
                     rospy.logwarn('*** Robot returning to emergency base! ***')
                     rospy.logwarn('=' * 50)
+                    
+                if self.total_found == len(self.survivors) and not self.homing_sent:
+                    self.signal_return_to_base()
 
+    def callback_survivor_detected(self, msg):
+        """Sync our found-flags with any detection published on the topic
+        (e.g. by Bug2's proximity check) so homing fires at the right time."""
+        idx = msg.survivor_id - 1   # survivor_id is 1-based
+        if 0 <= idx < len(self.survivors) and not self.survivors[idx]['found']:
+            self.survivors[idx]['found'] = True
+            self.total_found += 1
+            rospy.loginfo('[SurvivorDetector] Synced external detection:'
+                          ' survivor %d (total %d/3)', msg.survivor_id, self.total_found)
+            if self.total_found == 3 and not self.homing_sent:
+                self.signal_return_to_base()
+
+    def signal_return_to_base(self):
+        """Call Bug2 homing service so robot returns to emergency base."""
+        rospy.logwarn('=' * 50)
+        rospy.logwarn('*** ALL 3 SURVIVORS FOUND! ***')
+        rospy.logwarn('*** Sending homing signal to Bug2 ***')
+        rospy.logwarn('*** Robot returning to emergency base ***')
+        rospy.logwarn('=' * 50)
+        try:
+            rospy.wait_for_service('mine_rescue_homing', timeout=3.0)
+            svc = rospy.ServiceProxy(
+                'mine_rescue_homing', MineRescueSetBugStatus)
+            req      = MineRescueSetBugStatusRequest()
+            req.flag = True
+            svc(req)
+            self.homing_sent = True
+        except Exception as exc:
+            rospy.logwarn('[SurvivorDetector] Homing service not available: %s', exc)
 
 if __name__ == '__main__':
     try:

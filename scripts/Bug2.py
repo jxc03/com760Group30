@@ -4,9 +4,9 @@
 # Bug2.py - Master coordinator implementing the Bug2 algorithm
 #
 # Mission: Navigate collapsed school building to find survivors
-#   Waypoint 1: Child 1    (-8.0,  3.0) - NW classroom
+#   Waypoint 1: Child 1    (-6.0,  3.0) - NW classroom
 #   Waypoint 2: Teacher    ( 0.0, -3.0) - south corridor
-#   Waypoint 3: Child 2    ( 7.0,  3.0) - east corridor
+#   Waypoint 3: Child 2    ( 5.0,  3.0) - east corridor
 #   Waypoint 4: Base       (11.0,  0.0) - emergency base (exit)
 #
 # Bug2 Algorithm (Lumelsky & Stepanov, 1987):
@@ -115,6 +115,10 @@ class Bug2:
         self.sub_odom = rospy.Subscriber(
             '/odom', Odometry, self.callback_odom)
 
+        self.sub_survivor = rospy.Subscriber(
+            '/group30Bot/survivor_detected',
+            SurvivorDetected, self.callback_survivor_detected)
+        
         # Laser for obstacle detection in Bug2 state machine
         self.sub_laser = rospy.Subscriber(
             '/group30Bot/laser/scan', LaserScan, self.callback_laser)
@@ -417,19 +421,20 @@ class Bug2:
 
     def callback_laser(self, msg):
         """Extract front-facing distance from laser scan.
-        Uses ±30 degree cone in front of robot.
+        angle_min=-π: index 0=rear, index n//2=forward
+        Uses ±30 degree cone centred on forward direction.
         Reference: W8 Lecture Slide 19"""
         ranges = list(msg.ranges)
         max_r  = msg.range_max
         n      = len(ranges)
-        # 30 degree cone from centre
-        s = max(1, int(n * 30 / 360))
-        # Clean invalid readings
-        clean = [r if (not math.isnan(r) and
-                       not math.isinf(r) and
-                       r > 0.05) else max_r
-                 for r in ranges]
-        self.laser_front = min(min(clean[-s:]), min(clean[:s]))
+        s      = max(1, int(n * 30 / 360))
+        clean  = [r if (not math.isnan(r) and
+                        not math.isinf(r) and
+                        r > 0.05) else max_r
+                for r in ranges]
+        # mid = n//2 is forward (angle=0) for angle_min=-π laser
+        mid = n // 2
+        self.laser_front = min(clean[mid - s: mid + s])
         self.got_laser   = True
 
     def callback_survivor(self, msg):

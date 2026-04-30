@@ -41,7 +41,6 @@ class FollowWall:
 
         # Speed parameters - overridden by service request
         self.linear_speed   = 0.3
-        self.angular_speed  = 0.3
 
         # Turn direction set by Bug2 via service - 'left' or 'right'
         # Reference: Assignment Brief p.2 - "turning direction on obstacle contact"

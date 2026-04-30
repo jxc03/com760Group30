@@ -93,8 +93,8 @@ class Bug2:
         self.direction = 'left'  # default turn direction
 
         # Detection thresholds (metres)
-        self.obstacle_threshold   = 0.45  # switch to wall follow at this distance
-        self.m_line_threshold     = 0.25  # perpendicular distance to be "on" M-line
+        self.obstacle_threshold   = 0.35  # switch to wall follow at this distance
+        self.m_line_threshold     = 0.35  # perpendicular distance to be "on" M-line
         self.goal_threshold       = 0.40  # close enough to consider waypoint reached
         self.min_wall_follow_secs = 3.0   # minimum wall follow time before M-line check
         self.m_line_progress_buf  = 0.40  # must be 0.4m closer than hit point to exit
@@ -117,7 +117,7 @@ class Bug2:
 
         self.sub_survivor = rospy.Subscriber(
             '/group30Bot/survivor_detected',
-            SurvivorDetected, self.callback_survivor_detected)
+            SurvivorDetected, self.callback_survivor)
         
         # Laser for obstacle detection in Bug2 state machine
         self.sub_laser = rospy.Subscriber(
@@ -218,8 +218,16 @@ class Bug2:
             return
 
         elapsed = rospy.get_time() - self.wall_follow_start
-        if elapsed < self.min_wall_follow_secs:
-            return
+        if elapsed > 30.0 and dist >= self.obstacle_hit_dist:
+            old_dir = self.direction
+            self.direction = 'right' if self.direction == 'left' else 'left'
+            rospy.logwarn(
+                '[Bug2] Stuck detected (%.0fs). Direction flip: %s -> %s',
+                elapsed, old_dir, self.direction)
+            self.deactivate_follow_wall()
+            self.execute_recovery()    # Back up and rotate before retrying
+            self.wall_follow_start = rospy.get_time()
+            self.start_follow_wall()
 
         # Bug2 M-line return condition
         if (self.on_m_line() and
@@ -247,9 +255,9 @@ class Bug2:
                 'Flipping direction: %s -> %s',
                 elapsed, dist, old_dir, self.direction)
             self.deactivate_follow_wall()
-            rospy.sleep(0.3)
+            self.execute_recovery()    # Back up and rotate before retrying
             self.wall_follow_start = rospy.get_time()
-            self.start_follow_wall()
+            self.start_follow_wall()    
 
     # ------------------------------------------------------------------
     # State 3: Waypoint reached - advance to next goal
@@ -390,6 +398,35 @@ class Bug2:
         except rospy.ServiceException as exc:
             rospy.logerr('[Bug2] wall_follower deactivate failed: %s', exc)
 
+    def execute_recovery(self):
+        """Recovery behaviour: back up then rotate to escape trapped positions.
+        Triggered when stuck detection fires after 30 seconds.
+        Reference: W9 Lecture (Bug algorithm recovery)"""
+        rospy.logwarn('[Bug2] Executing recovery behaviour...')
+        
+        # Back up for 2 seconds to create clearance
+        msg = Twist()
+        msg.linear.x = -0.3
+        start = rospy.get_time()
+        while rospy.get_time() - start < 2.0 and not rospy.is_shutdown():
+            self.pub_vel.publish(msg)
+            rospy.sleep(0.1)
+        
+        # Stop briefly
+        self.stop_robot()
+        rospy.sleep(0.5)
+        
+        # Rotate 90 degrees to face a new direction
+        msg = Twist()
+        msg.angular.z = 0.5
+        start = rospy.get_time()
+        while rospy.get_time() - start < 3.0 and not rospy.is_shutdown():
+            self.pub_vel.publish(msg)
+            rospy.sleep(0.1)
+        
+        self.stop_robot()
+        rospy.logwarn('[Bug2] Recovery complete. Resuming navigation.')
+
     def stop_robot(self):
         self.pub_vel.publish(Twist())
 
@@ -433,7 +470,7 @@ class Bug2:
                         r > 0.05) else max_r
                 for r in ranges]
         # mid = n//2 is forward (angle=0) for angle_min=-π laser
-        mid = n // 2
+        mid = n//2
         self.laser_front = min(clean[mid - s: mid + s])
         self.got_laser   = True
 
